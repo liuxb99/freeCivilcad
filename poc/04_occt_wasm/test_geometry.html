@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>freeCivilcad 幾何運算雙軌測試</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 16px; }
+  #mode-selector {
+    display: flex; gap: 8px; margin: 16px 0;
+  }
+  .mode-btn {
+    padding: 8px 20px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #94a3b8;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .mode-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+  #status {
+    padding: 16px;
+    border-radius: 8px;
+    margin: 12px 0;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .loading { background: #1e293b; border-left: 4px solid #f59e0b; }
+  .success { background: #064e3b; border-left: 4px solid #10b981; }
+  .error { background: #7f1d1d; border-left: 4px solid #ef4444; }
+  canvas {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    margin: 16px 0;
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 1200px;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .metric-card {
+    background: #1e293b;
+    padding: 14px;
+    border-radius: 8px;
+  }
+  .metric-value {
+    font-size: 26px;
+    font-weight: bold;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .metric-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+  }
+  .metric-pass { color: #10b981; }
+  .metric-warn { color: #f59e0b; }
+  .metric-fail { color: #ef4444; }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .info-panel {
+    background: #1e293b;
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .info-panel h3 { margin: 0 0 8px 0; font-size: 14px; color: #94a3b8; }
+  .info-panel code {
+    display: block;
+    background: #0f172a;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 6px 0;
+    font-size: 12px;
+    color: #e2e8f0;
+  }
+  #bench-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  #bench-table th, #bench-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+  }
+  #bench-table th { background: #1e293b; color: #94a3b8; font-weight: 500; }
+  #bench-table tr:hover { background: #1e293b; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-green { background: #064e3b; color: #10b981; }
+  .badge-yellow { background: #713f12; color: #f59e0b; }
+  .badge-blue { background: #1e3a5f; color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<h1>freeCivilcad 幾何運算引擎 — 雙軌測試</h1>
+<p class="subtitle">WASM 本機模式 (emcc) | WebSocket 後端模式 (FastAPI)</p>
+
+<div id="mode-selector">
+  <button class="mode-btn active" data-mode="wasm" onclick="switchMode('wasm')">🧠 WASM 本機</button>
+  <button class="mode-btn" data-mode="backend" onclick="switchMode('backend')">🌐 後端模式</button>
+  <button class="mode-btn" data-mode="compare" onclick="switchMode('compare')">⚖️ 比對模式</button>
+</div>
+
+<div id="status" class="loading">⏳ 初始化中...</div>
+
+<div class="metrics" id="metrics" style="display:none;"></div>
+
+<div class="info-grid">
+  <div class="info-panel" id="panel-left">
+    <h3 id="panel-title-left">WASM 引擎狀態</h3>
+    <div id="engine-status">檢查中...</div>
+  </div>
+  <div class="info-panel" id="panel-right">
+    <h3 id="panel-title-right">後端引擎狀態</h3>
+    <div id="backend-status">檢查中...</div>
+  </div>
+</div>
+
+<canvas id="canvas" width="1200" height="600"></canvas>
+
+<h2>性能測試</h2>
+<table id="bench-table">
+  <thead><tr><th>操作</th><th>WASM 本機</th><th>後端</th><th>勝出</th></tr></thead>
+  <tbody id="bench-body">
+    <tr><td>1000 條直線 + BBox</td><td id="b1-wasm">—</td><td id="b1-backend">—</td><td id="b1-winner">—</td></tr>
+    <tr><td>球體體積計算</td><td id="b2-wasm">—</td><td id="b2-backend">—</td><td id="b2-winner">—</td></tr>
+    <tr><td>三角形面積</td><td id="b3-wasm">—</td><td id="b3-backend">—</td><td id="b3-winner">—</td></tr>
+  </tbody>
+</table>
+
+<h2>執行模式說明</h2>
+<ul style="font-size:13px; color:#94a3b8; line-height:1.8;">
+  <li><strong>WASM 本機模式</strong> — 使用 emscripten 編譯的 C++ 幾何引擎直接於瀏覽器執行，不需網路。</li>
+  <li><strong>後端模式</strong> — 透過 WebSocket 連接本機 Python 伺服器 (port 8765)，由 FastAPI 處理幾何運算。</li>
+  <li><strong>比對模式</strong> — 同時執行兩種模式，比較延遲與結果一致性。</li>
+</ul>
+
+<script>
+// ============================================================
+// freeCivilcad Geometry Engine — Dual Mode Test
+// ============================================================
+
+const STATUS_EL = document.getElementById('status');
+const METRICS_EL = document.getElementById('metrics');
+const CANVAS_EL = document.getElementById('canvas');
+const ctx = CANVAS_EL.getContext('2d');
+
+let currentMode = 'wasm';
+let wasmModule = null;
+let wasmReady = false;
+let backendReady = false;
+let ws = null;
+
+function setStatus(msg, type) {
+  STATUS_EL.className = type;
+  STATUS_EL.innerHTML = msg;
+}
+
+function createMetricCard(value, label, threshold) {
+  let cls = 'metric-pass';
+  if (threshold && value > threshold) cls = 'metric-fail';
+  else if (threshold && value > threshold * 0.7) cls = 'metric-warn';
+
+  return `
+    <div class="metric-card">
+      <div class="metric-value ${cls}">${typeof value === 'number' ? value.toLocaleString(undefined, {maximumFractionDigits:1}) : value}</div>
+      <div class="metric-label">${label}</div>
+    </div>
+  `;
+}
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  setStatus(`🔄 切換至 ${mode === 'wasm' ? 'WASM 本機' : mode === 'backend' ? '後端' : '比對'}模式，重新執行測試...`, 'loading');
+  setTimeout(runTest, 300);
+}
+
+// --- WASM Module Loader ---
+async function loadWasmModule() {
+  try {
+    const response = await fetch('dist/occt_core.js');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const scriptText = await response.text();
+
+    const script = document.createElement('script');
+    script.textContent = scriptText;
+    document.head.appendChild(script);
+
+    await new Promise((resolve, reject) => {
+      const check = () => {
+        if (typeof Module !== 'undefined' && Module.calledRun) {
+          wasmReady = true;
+          wasmModule = Module;
+          resolve();
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      setTimeout(check, 100);
+      setTimeout(() => reject(new Error('WASM module load timeout')), 10000);
+    });
+
+    return true;
+  } catch (e) {
+    console.warn('WASM module load failed:', e.message);
+    return false;
+  }
+}
+
+// --- WASM Geometry API ---
+function wasmLineDistance(x1, y1, z1, x2, y2, z2) {
+  if (!wasmModule) return null;
+  return wasmModule.ccall('vec3_distance', 'number', ['number','number','number','number','number','number'], [x1,y1,z1,x2,y2,z2]);
+}
+
+function wasmTriangleArea(x1,y1,z1,x2,y2,z2,x3,y3,z3) {
+  if (!wasmModule) return null;
+  return wasmModule.ccall('triangle_area', 'number', ['number','number','number','number','number','number','number','number','number'], [x1,y1,z1,x2,y2,z2,x3,y3,z3]);
+}
+
+function wasmGenerateLines(count, maxCoord) {
+  if (!wasmModule) return null;
+  const bufSize = count * 6 * 8;
+  const buf = wasmModule._malloc(bufSize);
+  wasmModule.ccall('generate_random_lines', null, ['number','number','number'], [buf, count, maxCoord]);
+
+  const lines = [];
+  const f64 = new Float64Array(wasmModule.HEAPF64.buffer, buf, count * 6);
+  for (let i = 0; i < count; i++) {
+    const idx = i * 6;
+    lines.push({
+      id: i,
+      p1: [f64[idx], f64[idx+1], f64[idx+2]],
+      p2: [f64[idx+3], f64[idx+4], f64[idx+5]],
+      length: wasmLineDistance(f64[idx], f64[idx+1], f64[idx+2], f64[idx+3], f64[idx+4], f64[idx+5]),
+    });
+  }
+  wasmModule._free(buf);
+  return lines;
+}
+
+function wasmComputeBox(x, y, z, dx, dy, dz) {
+  return {
+    type: 'box', origin: [x,y,z], size: [dx,dy,dz],
+    volume: dx*dy*dz,
+    surface_area: 2*(dx*dy + dx*dz + dy*dz),
+  };
+}
+
+function wasmComputeSphere(cx, cy, cz, r) {
+  return {
+    type: 'sphere', center: [cx,cy,cz], radius: r,
+    volume: (4/3)*Math.PI*r*r*r,
+    surface_area: 4*Math.PI*r*r,
+  };
+}
+
+// --- Backend WebSocket ---
+async function connectBackend() {
+  const url = 'ws://localhost:8765/ws/geometry';
+  return new Promise((resolve) => {
+    try {
+      ws = new WebSocket(url);
+      ws.onopen = () => { backendReady = true; resolve(true); };
+      ws.onerror = () => { backendReady = false; resolve(false); };
+      ws.onclose = () => { backendReady = false; };
+      ws.onmessage = (e) => { /* handled by caller */ };
+      setTimeout(() => { if (!backendReady) resolve(false); }, 3000);
+    } catch (e) {
+      resolve(false);
+    }
+  });
+}
+
+function backendRequest(action, params) {
+  return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('WebSocket not connected'));
+      return;
+    }
+    const handler = (e) => {
+      const msg = JSON.parse(e.data);
+      ws.removeEventListener('message', handler);
+      resolve(msg);
+    };
+    ws.addEventListener('message', handler);
+    ws.send(JSON.stringify({ action, ...params }));
+    setTimeout(() => {
+      ws.removeEventListener('message', handler);
+      reject(new Error('Backend request timeout'));
+    }, 10000);
+  });
+}
+
+// --- Drawing ---
+function drawLines(lines, title) {
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, CANVAS_EL.width, CANVAS_EL.height);
+
+  const scaleX = CANVAS_EL.width / 1200;
+  const scaleY = CANVAS_EL.height / 600;
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < CANVAS_EL.width; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_EL.height); ctx.stroke();
+  }
+  for (let y = 0; y < CANVAS_EL.height; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_EL.width, y); ctx.stroke();
+  }
+
+  for (const line of lines) {
+    const len = line.length || 50;
+    const r = Math.min(255, Math.floor(len * 2));
+    const g = Math.min(255, Math.floor(100 + len));
+    const b = Math.max(0, 255 - Math.floor(len));
+
+    ctx.beginPath();
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+    ctx.lineWidth = 0.8;
+    ctx.moveTo(line.p1[0] * scaleX, line.p1[1] * scaleY);
+    ctx.lineTo(line.p2[0] * scaleX, line.p2[1] * scaleY);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 16px system-ui';
+  ctx.fillText(title || `freeCivilcad — ${lines.length} Lines`, 20, 30);
+}
+
+// --- Run Tests ---
+async function runWasmTest() {
+  if (!wasmReady) return null;
+  const t0 = performance.now();
+  const lines = wasmGenerateLines(1000, 1000);
+  const t1 = performance.now();
+
+  const totalLength = lines.reduce((s, l) => s + l.length, 0);
+  const bbox = {
+    xmin: Math.min(...lines.map(l => Math.min(l.p1[0], l.p2[0]))),
+    xmax: Math.max(...lines.map(l => Math.max(l.p1[0], l.p2[0]))),
+    ymin: Math.min(...lines.map(l => Math.min(l.p1[1], l.p2[1]))),
+    ymax: Math.max(...lines.map(l => Math.max(l.p1[1], l.p2[1]))),
+  };
+
+  const t2 = performance.now();
+  const sphere = wasmComputeSphere(0, 0, 0, 5);
+  const triArea = wasmTriangleArea(0,0,0, 10,0,0, 0,10,0);
+  const t3 = performance.now();
+
+  return {
+    lines,
+    bbox,
+    totalLength,
+    lineTime: t1 - t0,
+    bboxTime: t2 - t1,
+    sphereTime: t3 - t2,
+    triArea,
+    sphere,
+  };
+}
+
+async function runBackendTest() {
+  if (!backendReady) return null;
+  const t0 = performance.now();
+  const result = await backendRequest('generate_lines', { count: 1000, max_coord: 1000 });
+  const t1 = performance.now();
+  const sphereResult = await backendRequest('compute_shape', { shape_type: 'sphere', params: { cx: 0, cy: 0, cz: 0, radius: 5 } });
+  const t2 = performance.now();
+
+  return {
+    lines: result.lines,
+    bbox: result.bbox,
+    lineTime: t1 - t0,
+    sphereTime: t2 - t1,
+    sphere: sphereResult,
+  };
+}
+
+async function runTest() {
+  try {
+    document.getElementById('panel-left').querySelector('div').innerHTML =
+      wasmReady ? '<span style="color:#10b981">✅ 已載入</span>' : '<span style="color:#f59e0b">⚠️ 不可用</span>';
+
+    document.getElementById('panel-right').querySelector('div').innerHTML =
+      backendReady ? '<span style="color:#10b981">✅ 已連接</span>' : '<span style="color:#f59e0b">⚠️ 未連接</span>';
+
+    let lines = [];
+    let benchData = { wasm: null, backend: null };
+
+    if (currentMode === 'wasm' || currentMode === 'compare') {
+      if (wasmReady) {
+        setStatus('⏳ WASM 本機測試進行中...', 'loading');
+        const wasmResult = await runWasmTest();
+        if (wasmResult) {
+          benchData.wasm = wasmResult;
+          lines = wasmResult.lines;
+          document.getElementById('b1-wasm').textContent = wasmResult.lineTime.toFixed(1) + 'ms';
+          document.getElementById('b2-wasm').textContent = wasmResult.sphereTime.toFixed(1) + 'ms';
+          document.getElementById('b3-wasm').textContent = wasmResult.triArea.toFixed(2) + ' 單位²';
+        }
+      }
+    }
+
+    if (currentMode === 'backend' || currentMode === 'compare') {
+      if (backendReady) {
+        setStatus('⏳ 後端測試進行中...', 'loading');
+        const backendResult = await runBackendTest();
+        if (backendResult) {
+          benchData.backend = backendResult;
+          if (currentMode === 'backend') lines = backendResult.lines;
+          document.getElementById('b1-backend').textContent = backendResult.lineTime.toFixed(1) + 'ms';
+          document.getElementById('b2-backend').textContent = backendResult.sphereTime.toFixed(1) + 'ms';
+        }
+      }
+    }
+
+    // Determine winner
+    if (benchData.wasm && benchData.backend) {
+      const wasmT = benchData.wasm.lineTime;
+      const beT = benchData.backend.lineTime;
+      document.getElementById('b1-winner').innerHTML = wasmT < beT
+        ? '<span class="badge badge-green">WASM</span>'
+        : '<span class="badge badge-blue">後端</span>';
+    }
+
+    // Display metrics
+    if (lines.length > 0) {
+      METRICS_EL.style.display = 'grid';
+      const totalLen = lines.reduce((s, l) => s + (l.length || 0), 0);
+      METRICS_EL.innerHTML = [
+        createMetricCard(`${benchData.wasm?.lineTime?.toFixed(1) || '—'}ms`, `WASM 創建線段 (目標<2000ms)`, 2000),
+        createMetricCard(`${benchData.backend?.lineTime?.toFixed(1) || '—'}ms`, `後端 創建線段`, 5000),
+        createMetricCard(totalLen.toFixed(1), `總線長 (單位)`, null),
+        createMetricCard(`${wasmReady ? '✅' : '❌'} WASM / ${backendReady ? '✅' : '❌'} 後端`, `引擎狀態`, null),
+      ].join('');
+
+      drawLines(lines, `freeCivilcad — ${lines.length} 條線段 (${currentMode === 'wasm' ? 'WASM 本機' : currentMode === 'backend' ? '後端' : '比對'}模式)`);
+    }
+
+    setStatus('✅ 測試完成', 'success');
+
+  } catch (err) {
+    setStatus(`❌ 測試失敗: ${err.message}`, 'error');
+    console.error(err);
+  }
+}
+
+// --- Initialization ---
+async function init() {
+  setStatus('⏳ 載入 WASM 模組...', 'loading');
+
+  const wasmOk = await loadWasmModule();
+  document.getElementById('engine-status').innerHTML = wasmOk
+    ? '<span style="color:#10b981">✅ 已載入</span><br><code>dist/occt_core.wasm (8KB)</code>'
+    : '<span style="color:#ef4444">❌ 未載入</span><br><code>請確保 dist/occt_core.js 存在</code>';
+
+  setStatus('⏳ 連接後端伺服器...', 'loading');
+  const beOk = await connectBackend();
+  document.getElementById('backend-status').innerHTML = beOk
+    ? '<span style="color:#10b981">✅ ws://localhost:8765</span><br><code>FastAPI + WebSocket</code>'
+    : '<span style="color:#ef4444">❌ 未連接</span><br><code>請執行: python src/server.py</code>';
+
+  setTimeout(runTest, 500);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

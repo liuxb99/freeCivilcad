@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DXF 測試載入</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #eee; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+h1 { font-size: 18px; margin-bottom: 12px; color: #a0f0ff; }
+canvas { border: 1px solid #444; background: #0d0d1a; cursor: default; display: block; }
+#info { margin-top: 12px; font-size: 13px; color: #aaa; }
+</style>
+</head>
+<body>
+<h1>DXF 解析測試 — Canvas 渲染</h1>
+<canvas id="c" width="900" height="600"></canvas>
+<div id="info">載入中...</div>
+
+<script>
+async function main() {
+  const res = await fetch('output/parsed.json');
+  const data = await res.json();
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const info = document.getElementById('info');
+
+  const W = canvas.width, H = canvas.height;
+  const margin = 40;
+  const drawW = W - 2 * margin, drawH = H - 2 * margin;
+
+  // compute bounding box for auto-fit
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of data.entities) {
+    if (e.type === 'LINE') {
+      x0 = Math.min(x0, e.x1, e.x2); y0 = Math.min(y0, e.y1, e.y2);
+      x1 = Math.max(x1, e.x1, e.x2); y1 = Math.max(y1, e.y1, e.y2);
+    } else if (e.type === 'CIRCLE' || e.type === 'ARC') {
+      const r = e.radius || 0;
+      x0 = Math.min(x0, e.cx - r); y0 = Math.min(y0, e.cy - r);
+      x1 = Math.max(x1, e.cx + r); y1 = Math.max(y1, e.cy + r);
+    } else if (e.type === 'LWPOLYLINE') {
+      for (const v of (e.vertices || [])) {
+        x0 = Math.min(x0, v.x); y0 = Math.min(y0, v.y);
+        x1 = Math.max(x1, v.x); y1 = Math.max(y1, v.y);
+      }
+    } else if (e.type === 'TEXT') {
+      x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y);
+      x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y);
+    }
+  }
+  if (!isFinite(x0)) { x0 = 0; y0 = 0; x1 = 400; y1 = 300; }
+
+  const pad = 20;
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+  const worldW = x1 - x0 || 1, worldH = y1 - y0 || 1;
+  const scale = Math.min(drawW / worldW, drawH / worldH);
+  const ox = margin + (drawW - worldW * scale) / 2;
+  const oy = margin + (drawH - worldH * scale) / 2;
+
+  function tx(x) { return ox + (x - x0) * scale; }
+  function ty(y) { return oy + (y1 - y) * scale; }  // flip Y
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 1;
+
+  // grid
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 0.5;
+  const gridSize = Math.pow(10, Math.round(Math.log10(worldW / 10)));
+  const gx0 = Math.floor(x0 / gridSize) * gridSize;
+  const gy0 = Math.floor(y0 / gridSize) * gridSize;
+  for (let gx = gx0; gx <= x1; gx += gridSize) {
+    ctx.beginPath(); ctx.moveTo(tx(gx), ty(y0)); ctx.lineTo(tx(gx), ty(y1)); ctx.stroke();
+  }
+  for (let gy = gy0; gy <= y1; gy += gridSize) {
+    ctx.beginPath(); ctx.moveTo(tx(x0), ty(gy)); ctx.lineTo(tx(x1), ty(gy)); ctx.stroke();
+  }
+
+  ctx.lineWidth = 2;
+  for (const e of data.entities) {
+    ctx.strokeStyle = e.color || '#fff';
+    ctx.fillStyle = e.color || '#fff';
+
+    if (e.type === 'LINE') {
+      ctx.beginPath();
+      ctx.moveTo(tx(e.x1), ty(e.y1));
+      ctx.lineTo(tx(e.x2), ty(e.y2));
+      ctx.stroke();
+    } else if (e.type === 'CIRCLE') {
+      ctx.beginPath();
+      ctx.arc(tx(e.cx), ty(e.cy), e.radius * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (e.type === 'ARC') {
+      const sa = e.start_angle * Math.PI / 180;
+      const ea = e.end_angle * Math.PI / 180;
+      ctx.beginPath();
+      ctx.arc(tx(e.cx), ty(e.cy), e.radius * scale, -ea, -sa);
+      ctx.stroke();
+    } else if (e.type === 'LWPOLYLINE') {
+      const verts = e.vertices || [];
+      if (verts.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(tx(verts[0].x), ty(verts[0].y));
+        for (let j = 1; j < verts.length; j++) {
+          ctx.lineTo(tx(verts[j].x), ty(verts[j].y));
+        }
+        const closed = e.flag !== undefined ? (e.flag & 1) : 0;
+        if (closed) ctx.closePath();
+        ctx.stroke();
+      }
+    } else if (e.type === 'TEXT') {
+      const fontSize = Math.max(10, (e.height || 20) * scale);
+      ctx.font = fontSize + 'px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.text || '', tx(e.x), ty(e.y));
+    }
+  }
+
+  info.textContent = '已載入 ' + data.entities.length + ' 個圖元'
+    + ' | LINE:' + (data.stats.by_type.LINE || 0)
+    + ' CIRCLE:' + (data.stats.by_type.CIRCLE || 0)
+    + ' ARC:' + (data.stats.by_type.ARC || 0)
+    + ' LWPOLYLINE:' + (data.stats.by_type.LWPOLYLINE || 0)
+    + ' TEXT:' + (data.stats.by_type.TEXT || 0);
+}
+
+main().catch(e => {
+  document.getElementById('info').textContent = '錯誤: ' + e.message;
+});
+</script>
+</body>
+</html>

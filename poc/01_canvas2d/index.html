@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>freeCivilcad Canvas2D POC</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; overflow: hidden; background: #1e1e2e; }
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 48px;
+    background: #181825; border-bottom: 1px solid #313246;
+    display: flex; align-items: center; padding: 0 12px; gap: 6px;
+    z-index: 100; user-select: none;
+  }
+  #toolbar .brand {
+    color: #cdd6f4; font-weight: bold; font-size: 14px; margin-right: 16px;
+    padding-right: 16px; border-right: 1px solid #45475a;
+  }
+  .tool-btn {
+    width: 36px; height: 36px; border: 1px solid #45475a; border-radius: 6px;
+    background: #313244; color: #cdd6f4; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; transition: all 0.15s;
+  }
+  .tool-btn:hover { background: #45475a; }
+  .tool-btn.active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; }
+  .tool-btn:disabled { opacity: 0.4; cursor: default; }
+  .tool-btn:disabled:hover { background: #313244; }
+  .tool-btn svg { width: 18px; height: 18px; }
+  #toolbar .separator { width: 1px; height: 24px; background: #45475a; margin: 0 6px; }
+  #toolbar .info {
+    color: #a6adc8; font-size: 11px; margin-left: auto;
+    display: flex; gap: 12px; align-items: center;
+  }
+  #toolbar .zoom-display {
+    color: #89b4fa; font-size: 12px; font-weight: 600; min-width: 48px;
+    text-align: center;
+  }
+  #canvas-container {
+    position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; cursor: crosshair;
+  }
+  #canvas-container.tool-select { cursor: default; }
+  #canvas-container.tool-drag { cursor: grab; }
+  #canvas-container.tool-drag.dragging { cursor: grabbing; }
+  canvas { display: block; }
+  #statusbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 28px;
+    background: #181825; border-top: 1px solid #313246;
+    display: flex; align-items: center; padding: 0 12px;
+    z-index: 100; user-select: none;
+  }
+  #statusbar span { color: #a6adc8; font-size: 11px; margin-right: 16px; }
+  #statusbar .coord { color: #89b4fa; margin-right: 12px; }
+  #statusbar .entity-count { color: #a6e3a1; }
+  #properties-panel {
+    position: fixed; top: 56px; right: 8px; width: 220px;
+    background: #1e1e2e; border: 1px solid #313246; border-radius: 8px;
+    padding: 12px; z-index: 100; display: none; font-size: 12px;
+  }
+  #properties-panel.visible { display: block; }
+  #properties-panel h3 { color: #89b4fa; font-size: 12px; margin-bottom: 8px; }
+  #properties-panel .prop-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 3px 0; color: #cdd6f4;
+  }
+  #properties-panel .prop-label { color: #a6adc8; }
+  #properties-panel .prop-value { color: #f38ba8; font-weight: 600; }
+  #properties-panel .delete-btn {
+    margin-top: 8px; width: 100%; padding: 6px; border: 1px solid #f38ba8;
+    border-radius: 4px; background: transparent; color: #f38ba8;
+    cursor: pointer; font-size: 11px;
+  }
+  #properties-panel .delete-btn:hover { background: #f38ba8; color: #1e1e2e; }
+  #text-input-overlay {
+    position: fixed; z-index: 200; display: none;
+  }
+  #text-input-overlay input {
+    width: 200px; padding: 6px 10px; font-size: 14px;
+    background: #313244; border: 2px solid #89b4fa; border-radius: 6px;
+    color: #cdd6f4; outline: none;
+  }
+  #polygon-hint {
+    position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
+    background: #313244; color: #f9e2af; padding: 4px 16px;
+    border-radius: 4px; font-size: 12px; z-index: 100; display: none;
+    pointer-events: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="brand">freeCivilcad</span>
+  <button class="tool-btn active" data-tool="select" title="選取 (V)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="line" title="直線 (L)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="circle" title="圓 (C)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="arc" title="弧線 (A)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 Q12 4 20 4"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="polygon" title="多邊形 (P)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,3 21,9 18,19 6,19 3,9"/></svg>
+  </button>
+  <button class="tool-btn" data-tool="text" title="文字 (T)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><text x="6" y="19" font-size="18" font-weight="bold" fill="currentColor" stroke="none">T</text></svg>
+  </button>
+  <div class="separator"></div>
+  <button class="tool-btn" data-tool="pan" title="平移 (H)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M2 12l3-3M2 12l-3-3M22 12l3 3M22 12l-3-3M22 12l-3 3"/></svg>
+  </button>
+  <div class="separator"></div>
+  <button class="tool-btn" id="zoom-in" title="放大">+</button>
+  <span class="zoom-display" id="zoom-display">100%</span>
+  <button class="tool-btn" id="zoom-out" title="縮小">-</button>
+  <button class="tool-btn" id="zoom-reset" title="重置縮放">1:1</button>
+  <div class="separator"></div>
+  <button class="tool-btn" id="grid-toggle" title="網格">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <line x1="4" y1="4" x2="4" y2="20"/><line x1="10" y1="4" x2="10" y2="20"/>
+      <line x1="16" y1="4" x2="16" y2="20"/><line x1="20" y1="4" x2="20" y2="20"/>
+      <line x1="4" y1="4" x2="20" y2="4"/><line x1="4" y1="10" x2="20" y2="10"/>
+      <line x1="4" y1="16" x2="20" y2="16"/><line x1="4" y1="20" x2="20" y2="20"/>
+    </svg>
+  </button>
+  <div class="separator"></div>
+  <button class="tool-btn" id="undo-btn" title="復原 (Ctrl+Z)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a5 5 0 0 1 0 10H9"/><path d="M8 6l-5 4 5 4"/></svg>
+  </button>
+  <button class="tool-btn" id="redo-btn" title="重做 (Ctrl+Y)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a5 5 0 0 0 0 10h7"/><path d="M16 6l5 4-5 4"/></svg>
+  </button>
+  <div class="separator"></div>
+  <button class="tool-btn" id="export-dxf" title="匯出 DXF">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </button>
+  <span class="info">
+    <span id="mouse-coords">X: 0, Y: 0</span>
+    <span class="entity-count" id="entity-count">圖元: 0</span>
+  </span>
+</div>
+
+<div id="canvas-container">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="properties-panel">
+  <h3>圖元屬性</h3>
+  <div id="props-content"></div>
+  <button class="delete-btn" id="delete-selected">刪除圖元</button>
+</div>
+
+<div id="text-input-overlay"><input type="text" id="text-input" placeholder="輸入文字後 Enter 確認"></div>
+
+<div id="polygon-hint">雙擊完成多邊形 • Enter 閉合 • Esc 取消</div>
+
+<div id="statusbar">
+  <span class="coord" id="status-coord">X: 0.00, Y: 0.00</span>
+  <span id="status-tool">選取工具</span>
+  <span id="status-hint" class="entity-count">點擊繪圖</span>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  const DEFAULT_COLORS = { LINE: '#f38ba8', CIRCLE: '#89b4fa', ARC: '#f9e2af', POLYGON: '#a6e3a1', TEXT: '#f5c2e7' };
+  let _nextId = 1;
+  function nextId() { return _nextId++; }
+
+  function makeEntity(type, props) {
+    const e = { id: nextId(), type, layer: '0', color: DEFAULT_COLORS[type] || '#cdd6f4', lineWidth: 2 };
+    Object.assign(e, props);
+    if (type === 'POLYGON' && !e.vertices) e.vertices = [];
+    return e;
+  }
+
+  class HistoryManager {
+    constructor(maxSteps) {
+      this.stack = []; this.ptr = -1; this.maxSteps = maxSteps || 60;
+    }
+    execute(cmd) {
+      cmd.execute();
+      this.stack.length = this.ptr + 1;
+      this.stack.push(cmd);
+      if (this.stack.length > this.maxSteps) { this.stack.shift(); this.ptr--; }
+      this.ptr = this.stack.length - 1;
+    }
+    undo() { if (this.ptr >= 0) { this.stack[this.ptr].undo(); this.ptr--; return true; } return false; }
+    redo() { if (this.ptr < this.stack.length - 1) { this.ptr++; this.stack[this.ptr].execute(); return true; } return false; }
+    canUndo() { return this.ptr >= 0; }
+    canRedo() { return this.ptr < this.stack.length - 1; }
+  }
+  const history = new HistoryManager(60);
+
+  function AddEntityCmd(e) {
+    const entity = e;
+    return {
+      execute() { state.entities.push(entity); invalidateSnapshot(); updateEntityCount(); },
+      undo() { const i = state.entities.indexOf(entity); if (i >= 0) state.entities.splice(i, 1); if (state.selectedEntity === entity) { state.selectedEntity = null; updatePropertiesPanel(null); } invalidateSnapshot(); updateEntityCount(); }
+    };
+  }
+
+  function RemoveEntityCmd(entity) {
+    const e = entity; let idx = -1;
+    return {
+      execute() { idx = state.entities.indexOf(e); if (idx >= 0) state.entities.splice(idx, 1); if (state.selectedEntity === e) { state.selectedEntity = null; updatePropertiesPanel(null); } invalidateSnapshot(); updateEntityCount(); },
+      undo() { if (idx >= 0) { state.entities.splice(idx, 0, e); invalidateSnapshot(); updateEntityCount(); } }
+    };
+  }
+
+  function MoveEntityCmd(entity, before) {
+    const e = entity; const b = deepClone(before);
+    return {
+      execute() { invalidateSnapshot(); },
+      undo() { Object.assign(e, deepClone(b)); invalidateSnapshot(); updatePropertiesPanel(state.selectedEntity); }
+    };
+  }
+
+  const container = document.getElementById('canvas-container');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const snapshotCanvas = document.createElement('canvas');
+  const snapshotCtx = snapshotCanvas.getContext('2d');
+  let snapshotValid = false;
+
+  function resizeCanvas() {
+    const w = container.clientWidth, h = container.clientHeight;
+    canvas.width = w; canvas.height = h;
+    snapshotCanvas.width = w; snapshotCanvas.height = h;
+    snapshotValid = false;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  function invalidateSnapshot() { snapshotValid = false; }
+
+  function screenToWorld(sx, sy) {
+    return { x: (sx - state.panX) / (state.zoom * state.gridSize), y: (sy - state.panY) / (state.zoom * state.gridSize) };
+  }
+  function worldToScreen(wx, wy) {
+    return { x: wx * state.zoom * state.gridSize + state.panX, y: wy * state.zoom * state.gridSize + state.panY };
+  }
+
+  const state = {
+    tool: 'select', entities: [], selectedEntity: null,
+    isDrawing: false, isDragging: false, isPanning: false,
+    drawingEntity: null, drawingPhase: 0,
+    panStart: null, panOffsetStart: null,
+    dragStart: null, dragBeforeState: null,
+    showGrid: true, gridSize: 20, zoom: 1, panX: 0, panY: 0,
+    mouseScreenX: 0, mouseScreenY: 0
+  };
+
+  function hitTest(wx, wy) {
+    const th = 8 / (state.zoom * state.gridSize);
+    for (let i = state.entities.length - 1; i >= 0; i--) {
+      const e = state.entities[i];
+      if (e.type === 'LINE') {
+        if (ptSegDist(wx, wy, e.x1, e.y1, e.x2, e.y2) < th) return e;
+      } else if (e.type === 'CIRCLE') {
+        if (Math.abs(Math.hypot(wx - e.cx, wy - e.cy) - e.radius) < th) return e;
+      } else if (e.type === 'ARC') {
+        const d = Math.hypot(wx - e.cx, wy - e.cy);
+        if (Math.abs(d - e.radius) < th) {
+          let a = Math.atan2(wy - e.cy, wx - e.cx);
+          let sa = normA(e.startAngle), ea = normA(e.endAngle), aa = normA(a);
+          if (sa <= ea) { if (aa >= sa && aa <= ea) return e; }
+          else { if (aa >= sa || aa <= ea) return e; }
+        }
+      } else if (e.type === 'POLYGON') {
+        for (let j = 0; j < e.vertices.length; j++) {
+          const k = (j + 1) % e.vertices.length;
+          if (ptSegDist(wx, wy, e.vertices[j].x, e.vertices[j].y, e.vertices[k].x, e.vertices[k].y) < th) return e;
+        }
+      } else if (e.type === 'TEXT') {
+        if (Math.hypot(wx - e.x, wy - e.y) < th * 3) return e;
+      }
+    }
+    return null;
+  }
+
+  function ptSegDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const ls = dx * dx + dy * dy;
+    if (ls === 0) return Math.hypot(px - ax, py - ay);
+    let t = ((px - ax) * dx + (py - ay) * dy) / ls;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function normA(a) { return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); }
+
+  function moveEntity(e, dx, dy) {
+    if (e.type === 'LINE') { e.x1 += dx; e.y1 += dy; e.x2 += dx; e.y2 += dy; }
+    else if (e.type === 'CIRCLE') { e.cx += dx; e.cy += dy; }
+    else if (e.type === 'ARC') { e.cx += dx; e.cy += dy; }
+    else if (e.type === 'POLYGON') { for (const v of e.vertices) { v.x += dx; v.y += dy; } }
+    else if (e.type === 'TEXT') { e.x += dx; e.y += dy; }
+  }
+
+  function drawGridTo(c) {
+    if (!state.showGrid) return;
+    const g = state.gridSize, w = canvas.width, h = canvas.height;
+    c.save();
+    c.lineWidth = 0.5;
+    c.strokeStyle = '#2a2a3a';
+    c.beginPath();
+    const ox = state.panX % (g * 5 * state.zoom), oy = state.panY % (g * 5 * state.zoom);
+    for (let x = ox; x < w; x += g * 5 * state.zoom) { c.moveTo(x, 0); c.lineTo(x, h); }
+    for (let y = oy; y < h; y += g * 5 * state.zoom) { c.moveTo(0, y); c.lineTo(w, y); }
+    c.stroke();
+    c.strokeStyle = '#222236';
+    c.beginPath();
+    for (let x = state.panX % (g * state.zoom); x < w; x += g * state.zoom) { c.moveTo(x, 0); c.lineTo(x, h); }
+    for (let y = state.panY % (g * state.zoom); y < h; y += g * state.zoom) { c.moveTo(0, y); c.lineTo(w, y); }
+    c.stroke();
+    const o = worldToScreen(0, 0);
+    c.strokeStyle = '#585b70'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(o.x, 0); c.lineTo(o.x, h); c.moveTo(0, o.y); c.lineTo(w, o.y); c.stroke();
+    c.restore();
+  }
+
+  function drawEntityTo(c, entity, highlight) {
+    c.save();
+    c.strokeStyle = entity.color;
+    c.lineWidth = (entity.lineWidth || 2) * state.zoom;
+    c.lineCap = 'round';
+    if (highlight) {
+      c.shadowColor = entity.color; c.shadowBlur = 12;
+      c.strokeStyle = '#ffffff'; c.lineWidth = (entity.lineWidth || 2) * state.zoom * 1.3;
+    }
+    if (entity.type === 'LINE') {
+      const s1 = worldToScreen(entity.x1, entity.y1), s2 = worldToScreen(entity.x2, entity.y2);
+      c.beginPath(); c.moveTo(s1.x, s1.y); c.lineTo(s2.x, s2.y); c.stroke();
+    } else if (entity.type === 'CIRCLE') {
+      const s = worldToScreen(entity.cx, entity.cy), r = entity.radius * state.zoom * state.gridSize;
+      c.beginPath(); c.arc(s.x, s.y, r, 0, Math.PI * 2); c.stroke();
+      if (!highlight) { c.fillStyle = entity.color; c.beginPath(); c.arc(s.x, s.y, 3 * state.zoom, 0, Math.PI * 2); c.fill(); }
+    } else if (entity.type === 'ARC') {
+      const s = worldToScreen(entity.cx, entity.cy), r = entity.radius * state.zoom * state.gridSize;
+      const sa = entity.startAngle, ea = entity.endAngle;
+      c.beginPath(); c.arc(s.x, s.y, r, sa, ea); c.stroke();
+      if (!highlight) {
+        c.fillStyle = entity.color;
+        const e1 = worldToScreen(entity.cx + entity.radius * Math.cos(sa), entity.cy + entity.radius * Math.sin(sa));
+        const e2 = worldToScreen(entity.cx + entity.radius * Math.cos(ea), entity.cy + entity.radius * Math.sin(ea));
+        c.beginPath(); c.arc(e1.x, e1.y, 3 * state.zoom, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(e2.x, e2.y, 3 * state.zoom, 0, Math.PI * 2); c.fill();
+      }
+    } else if (entity.type === 'POLYGON') {
+      const verts = entity.vertices;
+      if (verts.length < 2) { c.restore(); return; }
+      c.beginPath();
+      const p0 = worldToScreen(verts[0].x, verts[0].y);
+      c.moveTo(p0.x, p0.y);
+      for (let i = 1; i < verts.length; i++) {
+        const p = worldToScreen(verts[i].x, verts[i].y);
+        c.lineTo(p.x, p.y);
+      }
+      c.closePath(); c.stroke();
+      if (!highlight) {
+        c.fillStyle = entity.color; c.globalAlpha = 0.08;
+        c.fill(); c.globalAlpha = 1;
+        for (const v of verts) {
+          const p = worldToScreen(v.x, v.y);
+          c.beginPath(); c.arc(p.x, p.y, 3 * state.zoom, 0, Math.PI * 2); c.fill();
+        }
+      }
+    } else if (entity.type === 'TEXT') {
+      if (entity.text) {
+        const p = worldToScreen(entity.x, entity.y);
+        const fs = (entity.fontSize || 1) * state.zoom * state.gridSize;
+        c.font = fs + 'px "Microsoft JhengHei", sans-serif';
+        c.fillStyle = highlight ? '#ffffff' : entity.color;
+        c.textBaseline = 'bottom';
+        c.fillText(entity.text, p.x, p.y);
+      }
+    }
+    c.restore();
+  }
+
+  function drawSelectionBoxTo(c, entity) {
+    c.save();
+    c.strokeStyle = '#89b4fa'; c.lineWidth = 1.5; c.setLineDash([5, 3]);
+    let b;
+    if (entity.type === 'LINE') {
+      const s1 = worldToScreen(entity.x1, entity.y1), s2 = worldToScreen(entity.x2, entity.y2);
+      b = { l: Math.min(s1.x, s2.x), t: Math.min(s1.y, s2.y), r: Math.max(s1.x, s2.x), btm: Math.max(s1.y, s2.y) };
+    } else if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
+      const s = worldToScreen(entity.cx, entity.cy), r = (entity.radius || 0) * state.zoom * state.gridSize;
+      b = { l: s.x - r, t: s.y - r, r: s.x + r, btm: s.y + r };
+    } else if (entity.type === 'POLYGON') {
+      const verts = entity.vertices;
+      if (verts.length === 0) { c.restore(); return; }
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const v of verts) { const p = worldToScreen(v.x, v.y); if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; }
+      b = { l: minX, t: minY, r: maxX, btm: maxY };
+    } else if (entity.type === 'TEXT') {
+      const p = worldToScreen(entity.x, entity.y);
+      const fs = (entity.fontSize || 1) * state.zoom * state.gridSize;
+      b = { l: p.x - 4, t: p.y - fs - 4, r: p.x + 4, btm: p.y + 4 };
+    }
+    if (b) { const pad = 8; c.strokeRect(b.l - pad, b.t - pad, b.r - b.l + pad * 2, b.btm - b.t + pad * 2); }
+    c.setLineDash([]); c.fillStyle = '#89b4fa';
+    if (b) {
+      const cs = [{ x: b.l - pad, y: b.t - pad }, { x: b.r + pad, y: b.btm + pad }];
+      for (const c2 of cs) { c.beginPath(); c.arc(c2.x, c2.y, 4, 0, Math.PI * 2); c.fill(); }
+    }
+    c.restore();
+  }
+
+  function renderSnapshot() {
+    const w = canvas.width, h = canvas.height;
+    snapshotCtx.fillStyle = '#1e1e2e'; snapshotCtx.fillRect(0, 0, w, h);
+    drawGridTo(snapshotCtx);
+    for (const e of state.entities) { drawEntityTo(snapshotCtx, e, false); }
+  }
+
+  function render() {
+    if (!snapshotValid) { renderSnapshot(); snapshotValid = true; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(snapshotCanvas, 0, 0);
+    if (state.selectedEntity) {
+      drawEntityTo(ctx, state.selectedEntity, true);
+      drawSelectionBoxTo(ctx, state.selectedEntity);
+    }
+    if (state.isDrawing && state.drawingEntity) {
+      drawEntityTo(ctx, state.drawingEntity, false);
+      if (state.drawingEntity.type === 'POLYGON' && state.drawingEntity.vertices) {
+        for (const v of state.drawingEntity.vertices) {
+          const p = worldToScreen(v.x, v.y);
+          ctx.fillStyle = '#a6e3a1';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 4 * state.zoom, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+  }
+
+  function updateEntityCount() { document.getElementById('entity-count').textContent = '圖元: ' + state.entities.length; }
+
+  function updatePropertiesPanel(entity) {
+    const panel = document.getElementById('properties-panel'), content = document.getElementById('props-content');
+    if (!entity) { panel.classList.remove('visible'); return; }
+    panel.classList.add('visible');
+    let h = '<div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">#' + entity.id + '</span></div>';
+    h += '<div class="prop-row"><span class="prop-label">類型</span><span class="prop-value">' + entity.type + '</span></div>';
+    if (entity.type === 'LINE') {
+      h += '<div class="prop-row"><span class="prop-label">起點</span><span class="prop-value">(' + entity.x1.toFixed(1) + ', ' + entity.y1.toFixed(1) + ')</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">終點</span><span class="prop-value">(' + entity.x2.toFixed(1) + ', ' + entity.y2.toFixed(1) + ')</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">長度</span><span class="prop-value">' + Math.hypot(entity.x2 - entity.x1, entity.y2 - entity.y1).toFixed(1) + '</span></div>';
+    } else if (entity.type === 'CIRCLE') {
+      h += '<div class="prop-row"><span class="prop-label">圓心</span><span class="prop-value">(' + entity.cx.toFixed(1) + ', ' + entity.cy.toFixed(1) + ')</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">半徑</span><span class="prop-value">' + entity.radius.toFixed(1) + '</span></div>';
+    } else if (entity.type === 'ARC') {
+      h += '<div class="prop-row"><span class="prop-label">圓心</span><span class="prop-value">(' + entity.cx.toFixed(1) + ', ' + entity.cy.toFixed(1) + ')</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">半徑</span><span class="prop-value">' + entity.radius.toFixed(1) + '</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">角度</span><span class="prop-value">' + ((entity.startAngle * 180 / Math.PI) % 360).toFixed(0) + '° → ' + ((entity.endAngle * 180 / Math.PI) % 360).toFixed(0) + '°</span></div>';
+    } else if (entity.type === 'POLYGON') {
+      h += '<div class="prop-row"><span class="prop-label">頂點</span><span class="prop-value">' + entity.vertices.length + '</span></div>';
+    } else if (entity.type === 'TEXT') {
+      h += '<div class="prop-row"><span class="prop-label">內容</span><span class="prop-value">' + entity.text + '</span></div>';
+      h += '<div class="prop-row"><span class="prop-label">位置</span><span class="prop-value">(' + entity.x.toFixed(1) + ', ' + entity.y.toFixed(1) + ')</span></div>';
+    }
+    content.innerHTML = h;
+  }
+
+  function updateStatusBar(sx, sy) {
+    const w = screenToWorld(sx, sy);
+    document.getElementById('mouse-coords').textContent = 'X: ' + w.x.toFixed(1) + ', Y: ' + w.y.toFixed(1);
+    document.getElementById('status-coord').textContent = 'X: ' + w.x.toFixed(2) + ', Y: ' + w.y.toFixed(2);
+    const hints = { select: '點擊選取 / 拖曳平移', line: '點擊起點，再點擊終點', circle: '點擊圓心，拖曳設定半徑', arc: '點擊圓心，拖曳設定半徑與角度', polygon: '點擊新增頂點，雙擊完成', text: '點擊放置文字', pan: '拖曳平移畫布' };
+    document.getElementById('status-tool').textContent = { select: '選取', line: '直線', circle: '圓', arc: '弧線', polygon: '多邊形', text: '文字', pan: '平移' }[state.tool];
+    document.getElementById('status-hint').textContent = hints[state.tool] || '';
+  }
+
+  function updateZoomDisplay() { document.getElementById('zoom-display').textContent = Math.round(state.zoom * 100) + '%'; }
+
+  function updateCursor() {
+    container.className = '';
+    if (state.tool === 'select') container.classList.add('tool-select');
+    else if (state.tool === 'pan') container.classList.add('tool-drag');
+    else if (state.isPanning) container.classList.add('tool-drag', 'dragging');
+  }
+
+  function setTool(tool) {
+    if (tool === state.tool && tool === 'polygon' && state.isDrawing) return;
+    if (state.isDrawing && state.drawingEntity && state.tool === 'polygon') {
+      if (state.drawingEntity.vertices.length >= 3) { finishPolygon(); }
+    }
+    state.tool = tool;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    if (tool !== 'polygon') { state.isDrawing = false; state.drawingEntity = null; state.drawingPhase = 0; document.getElementById('polygon-hint').style.display = 'none'; }
+    if (tool !== 'text') { document.getElementById('text-input-overlay').style.display = 'none'; }
+    if (tool !== 'select') { state.selectedEntity = null; updatePropertiesPanel(null); }
+    updateCursor();
+  }
+
+  function setToolNoCancel(tool) {
+    state.tool = tool;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    updateCursor();
+  }
+
+  function finishPolygon() {
+    const e = state.drawingEntity;
+    if (e && e.vertices.length >= 3) {
+      const cmd = AddEntityCmd(makeEntity('POLYGON', { vertices: e.vertices.map(v => ({ x: v.x, y: v.y })) }));
+      history.execute(cmd);
+    }
+    state.isDrawing = false; state.drawingEntity = null; state.drawingPhase = 0;
+    document.getElementById('polygon-hint').style.display = 'none';
+    render();
+  }
+
+  function updateUndoRedoButtons() {
+    document.getElementById('undo-btn').disabled = !history.canUndo();
+    document.getElementById('redo-btn').disabled = !history.canRedo();
+  }
+
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => setTool(btn.dataset.tool));
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (document.getElementById('text-input-overlay').style.display !== 'none') {
+      if (e.key === 'Escape') {
+        document.getElementById('text-input-overlay').style.display = 'none';
+        document.getElementById('text-input').value = '';
+        setTool('select');
+      }
+      return;
+    }
+    if (e.key === 'v' || e.key === 'V') setTool('select');
+    else if (e.key === 'l' || e.key === 'L') setTool('line');
+    else if (e.key === 'c' || e.key === 'C') setTool('circle');
+    else if (e.key === 'a' || e.key === 'A') setTool('arc');
+    else if (e.key === 'p' || e.key === 'P') setTool('polygon');
+    else if (e.key === 't' || e.key === 'T') setTool('text');
+    else if (e.key === 'h' || e.key === 'H') setTool('pan');
+    else if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey)) { if (e.shiftKey) { history.redo(); } else { history.undo(); } invalidateSnapshot(); render(); updateUndoRedoButtons(); }
+    else if ((e.key === 'y' || e.key === 'Y') && (e.ctrlKey || e.metaKey)) { history.redo(); invalidateSnapshot(); render(); updateUndoRedoButtons(); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (state.selectedEntity && !e.target.closest('input')) {
+        const cmd = RemoveEntityCmd(state.selectedEntity);
+        history.execute(cmd); render(); updateUndoRedoButtons();
+      }
+    }
+    else if (e.key === 'Escape') {
+      if (state.isDrawing && state.drawingEntity && state.tool === 'polygon') {
+        state.isDrawing = false; state.drawingEntity = null; state.drawingPhase = 0;
+        document.getElementById('polygon-hint').style.display = 'none';
+        render();
+      }
+      setTool('select');
+    }
+    else if (e.key === 'Enter' && state.tool === 'polygon' && state.isDrawing && state.drawingEntity.vertices.length >= 3) {
+      finishPolygon();
+    }
+  });
+
+  document.getElementById('delete-selected').addEventListener('click', () => {
+    if (state.selectedEntity) {
+      const cmd = RemoveEntityCmd(state.selectedEntity);
+      history.execute(cmd); render(); updateUndoRedoButtons();
+    }
+  });
+
+  document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.25));
+  document.getElementById('zoom-out').addEventListener('click', () => zoomBy(0.8));
+  document.getElementById('zoom-reset').addEventListener('click', () => { state.zoom = 1; state.panX = 0; state.panY = 0; updateZoomDisplay(); invalidateSnapshot(); render(); });
+
+  function zoomBy(factor) {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const wx = (cx - state.panX) / (state.zoom * state.gridSize);
+    const wy = (cy - state.panY) / (state.zoom * state.gridSize);
+    state.zoom *= factor; state.zoom = Math.max(0.1, Math.min(10, state.zoom));
+    state.panX = cx - wx * state.zoom * state.gridSize;
+    state.panY = cy - wy * state.zoom * state.gridSize;
+    updateZoomDisplay(); invalidateSnapshot(); render();
+  }
+
+  document.getElementById('grid-toggle').addEventListener('click', function() {
+    state.showGrid = !state.showGrid; this.classList.toggle('active', state.showGrid);
+    invalidateSnapshot(); render();
+  });
+  document.getElementById('grid-toggle').classList.add('active');
+
+  document.getElementById('undo-btn').addEventListener('click', () => { history.undo(); invalidateSnapshot(); render(); updateUndoRedoButtons(); });
+  document.getElementById('redo-btn').addEventListener('click', () => { history.redo(); invalidateSnapshot(); render(); updateUndoRedoButtons(); });
+
+  document.getElementById('export-dxf').addEventListener('click', exportDXF);
+
+  function exportDXF() {
+    let s = '0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+    for (const e of state.entities) {
+      if (e.type === 'LINE') {
+        s += '0\nLINE\n8\n' + e.layer + '\n10\n' + e.x1 + '\n20\n' + e.y1 + '\n11\n' + e.x2 + '\n21\n' + e.y2 + '\n';
+      } else if (e.type === 'CIRCLE') {
+        s += '0\nCIRCLE\n8\n' + e.layer + '\n10\n' + e.cx + '\n20\n' + e.cy + '\n40\n' + e.radius + '\n';
+      } else if (e.type === 'ARC') {
+        s += '0\nARC\n8\n' + e.layer + '\n10\n' + e.cx + '\n20\n' + e.cy + '\n40\n' + e.radius + '\n50\n' + (e.startAngle * 180 / Math.PI) + '\n51\n' + (e.endAngle * 180 / Math.PI) + '\n';
+      } else if (e.type === 'POLYGON') {
+        s += '0\nLWPOLYLINE\n8\n' + e.layer + '\n90\n' + e.vertices.length + '\n70\n1\n';
+        for (const v of e.vertices) { s += '10\n' + v.x + '\n20\n' + v.y + '\n'; }
+      } else if (e.type === 'TEXT') {
+        s += '0\nTEXT\n8\n' + e.layer + '\n10\n' + e.x + '\n20\n' + e.y + '\n40\n1\n1\n' + e.text + '\n';
+      }
+    }
+    s += '0\nENDSEC\n0\nEOF';
+    const blob = new Blob([s], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'drawing.dxf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  let mouseDownPos = null;
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+    mouseDownPos = { sx, sy, wx: world.x, wy: world.y };
+
+    if (state.tool === 'pan' || (e.button === 1 && state.tool === 'select')) {
+      state.isPanning = true; state.panStart = { x: sx, y: sy };
+      state.panOffsetStart = { x: state.panX, y: state.panY };
+      container.classList.add('dragging'); return;
+    }
+
+    if (state.tool === 'select') {
+      const hit = hitTest(world.x, world.y);
+      if (hit) {
+        state.selectedEntity = hit; state.isDragging = true;
+        state.dragStart = { x: world.x, y: world.y };
+        state.dragBeforeState = deepClone(hit);
+        invalidateSnapshot(); updatePropertiesPanel(hit); render();
+      } else {
+        state.selectedEntity = null; updatePropertiesPanel(null); render();
+      }
+      return;
+    }
+
+    if (state.tool === 'line' && !state.isDrawing) {
+      state.isDrawing = true; state.drawingEntity = makeEntity('LINE', { x1: world.x, y1: world.y, x2: world.x, y2: world.y }); render(); return;
+    }
+
+    if (state.tool === 'circle' && !state.isDrawing) {
+      state.isDrawing = true; state.drawingEntity = makeEntity('CIRCLE', { cx: world.x, cy: world.y, radius: 0 }); render(); return;
+    }
+
+    if (state.tool === 'arc' && !state.isDrawing) {
+      state.isDrawing = true; state.drawingEntity = makeEntity('ARC', { cx: world.x, cy: world.y, radius: 0, startAngle: 0, endAngle: 0 }); render(); return;
+    }
+
+    if (state.tool === 'polygon') {
+      if (!state.isDrawing) {
+        state.isDrawing = true;
+        state.drawingEntity = makeEntity('POLYGON', { vertices: [{ x: world.x, y: world.y }] });
+        state.drawingPhase = 1;
+        document.getElementById('polygon-hint').style.display = 'block';
+        render(); return;
+      } else {
+        state.drawingEntity.vertices.push({ x: world.x, y: world.y });
+        render(); return;
+      }
+    }
+
+    if (state.tool === 'text') {
+      const ti = document.getElementById('text-input-overlay');
+      const inp = document.getElementById('text-input');
+      ti.style.display = 'block';
+      ti.style.left = (e.clientX + 10) + 'px';
+      ti.style.top = (e.clientY + 10) + 'px';
+      inp.value = ''; inp.focus();
+      inp._worldX = world.x; inp._worldY = world.y;
+      return;
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+    state.mouseScreenX = sx; state.mouseScreenY = sy;
+    updateStatusBar(sx, sy);
+
+    if (state.isPanning) {
+      state.panX = state.panOffsetStart.x + (sx - state.panStart.x);
+      state.panY = state.panOffsetStart.y + (sy - state.panStart.y);
+      invalidateSnapshot(); render(); return;
+    }
+
+    if (state.isDragging && state.selectedEntity) {
+      const dx = world.x - state.dragStart.x, dy = world.y - state.dragStart.y;
+      moveEntity(state.selectedEntity, dx, dy);
+      state.dragStart = { x: world.x, y: world.y };
+      invalidateSnapshot(); updatePropertiesPanel(state.selectedEntity); render(); return;
+    }
+
+    if (state.isDrawing && state.drawingEntity) {
+      if (state.drawingEntity.type === 'LINE') {
+        state.drawingEntity.x2 = world.x; state.drawingEntity.y2 = world.y;
+      } else if (state.drawingEntity.type === 'CIRCLE') {
+        state.drawingEntity.radius = Math.hypot(world.x - state.drawingEntity.cx, world.y - state.drawingEntity.cy);
+      } else if (state.drawingEntity.type === 'ARC') {
+        state.drawingEntity.radius = Math.hypot(world.x - state.drawingEntity.cx, world.y - state.drawingEntity.cy);
+        state.drawingEntity.endAngle = Math.atan2(world.y - state.drawingEntity.cy, world.x - state.drawingEntity.cx);
+      }
+      render(); return;
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+
+    if (state.isPanning) { state.isPanning = false; updateCursor(); return; }
+
+    if (state.isDragging) {
+      state.isDragging = false;
+      if (state.selectedEntity && state.dragBeforeState) {
+        const after = deepClone(state.selectedEntity);
+        if (JSON.stringify(after) !== JSON.stringify(state.dragBeforeState)) {
+          const cmd = MoveEntityCmd(state.selectedEntity, state.dragBeforeState);
+          history.execute(cmd); updateUndoRedoButtons();
+        }
+      }
+      state.dragBeforeState = null; return;
+    }
+
+    if (state.isDrawing && state.drawingEntity) {
+      const de = state.drawingEntity;
+      if (de.type === 'LINE') {
+        if (Math.hypot(de.x2 - de.x1, de.y2 - de.y1) > 0.1) {
+          const cmd = AddEntityCmd(makeEntity('LINE', { x1: de.x1, y1: de.y1, x2: de.x2, y2: de.y2 }));
+          history.execute(cmd); updateUndoRedoButtons();
+        }
+        state.isDrawing = false; state.drawingEntity = null; render(); return;
+      } else if (de.type === 'CIRCLE') {
+        if (de.radius > 0.1) {
+          const cmd = AddEntityCmd(makeEntity('CIRCLE', { cx: de.cx, cy: de.cy, radius: de.radius }));
+          history.execute(cmd); updateUndoRedoButtons();
+        }
+        state.isDrawing = false; state.drawingEntity = null; render(); return;
+      } else if (de.type === 'ARC') {
+        if (de.radius > 0.1) {
+          const endA = Math.atan2(world.y - de.cx, world.x - de.cy);
+          const cmd = AddEntityCmd(makeEntity('ARC', { cx: de.cx, cy: de.cy, radius: de.radius, startAngle: de.startAngle, endAngle: de.endAngle }));
+          history.execute(cmd); updateUndoRedoButtons();
+        }
+        state.isDrawing = false; state.drawingEntity = null; render(); return;
+      }
+    }
+  });
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (state.tool === 'polygon' && state.isDrawing && state.drawingEntity) {
+      const verts = state.drawingEntity.vertices;
+      if (verts.length >= 3) {
+        verts.pop();
+        finishPolygon(); updateUndoRedoButtons();
+      }
+    }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const wx = (sx - state.panX) / (state.zoom * state.gridSize);
+    const wy = (sy - state.panY) / (state.zoom * state.gridSize);
+    state.zoom *= factor; state.zoom = Math.max(0.1, Math.min(10, state.zoom));
+    state.panX = sx - wx * state.zoom * state.gridSize;
+    state.panY = sy - wy * state.zoom * state.gridSize;
+    updateZoomDisplay(); invalidateSnapshot(); render();
+  });
+
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+
+  document.getElementById('text-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const inp = document.getElementById('text-input');
+      const text = inp.value.trim();
+      if (text && inp._worldX !== undefined) {
+        const cmd = AddEntityCmd(makeEntity('TEXT', { x: inp._worldX, y: inp._worldY, text: text, fontSize: 1 }));
+        history.execute(cmd); updateUndoRedoButtons(); render();
+      }
+      document.getElementById('text-input-overlay').style.display = 'none';
+      inp.value = ''; setTool('select');
+    } else if (e.key === 'Escape') {
+      document.getElementById('text-input-overlay').style.display = 'none';
+      document.getElementById('text-input').value = '';
+      setTool('select');
+    }
+  });
+
+  function animate() {
+    render();
+    requestAnimationFrame(animate);
+  }
+
+  updateCursor(); updateZoomDisplay(); updateUndoRedoButtons();
+
+  console.log('%cfreeCivilcad Canvas2D POC', 'color: #89b4fa; font-size: 16px; font-weight: bold;');
+  console.log('%cV=選取 L=直線 C=圓 A=弧線 P=多邊形 T=文字 H=平移 Del=刪除 Ctrl+Z=復原 Ctrl+Shift+Z/Y=重做', 'color: #a6adc8;');
+
+  animate();
+
+})();
+</script>
+</body>
+</html>
