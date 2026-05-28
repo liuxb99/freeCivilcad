@@ -1,0 +1,10 @@
+{
+  "url": "https://freecivilcad.vercel.app",
+  "errors": [],
+  "actions": [
+    "Page loaded",
+    "Clicked 開始使用",
+    "Canvas found: {'x': 0, 'y': 47, 'width': 1060, 'height': 679}",
+    "Drew line and tried selecting"
+  ]
+}
