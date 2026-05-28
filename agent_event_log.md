@@ -95,4 +95,8 @@ TIME_PENDING | FIX | 修復 useCanvas2D.js 加入 engine.init() 呼叫
 TIME_PENDING | AGENT_INVOKE | 啟動深度除錯審查 — 全面掃描 Phase 4 runtime 錯誤
 TIME_PENDING | BUGFIX | 修復 5 項 runtime 錯誤
 TIME_PENDING | QA_DONE | Playwright 26/26 逐項瀏覽器操作驗證通過，14 張截圖
-TIME_PENDING | AGENT_INVOKE | 啟動 REVIEWER 子代理進行 Phase 4 最終評分（附 QA 報告）：1) 移除 useCanvas2D 中不存在的 init() 呼叫 2) keybindings 中 HAND→PAN 3) MIRROR 鏡射公式修正 4) activeLayer→_activeLayer 5) 新增鍵盤輸入焦點保護
+TIME_PENDING | AGENT_INVOKE | 啟動 REVIEWER 子代理進行 Phase 4 最終評分（附 QA 報告）
+TIME_PENDING | ROOT_CAUSE | 畫圖失敗根本原因：side-effect imports 載入順序問題，prototype 方法在 constructor 執行時尚未就緒
+TIME_PENDING | FIX | 將 engine-render/input/commands 全部合併回 engine-core.js 作為 class methods，移除 side-effect imports
+TIME_PENDING | VERIFIED | Playwright 驗證：非背景像素 2,278，實體繪圖正常
+TIME_PENDING | DEPLOY | Vercel 重新部署完成，https://freecivilcad.vercel.app：1) 移除 useCanvas2D 中不存在的 init() 呼叫 2) keybindings 中 HAND→PAN 3) MIRROR 鏡射公式修正 4) activeLayer→_activeLayer 5) 新增鍵盤輸入焦點保護
