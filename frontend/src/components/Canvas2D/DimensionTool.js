@@ -1,3 +1,5 @@
+import { DIM_OFFSET_DEFAULT, DIM_OFFSET_MIN, DIM_OFFSET_MAX, DIM_ARC_RADIUS_DEFAULT } from '../../config/constants.js'
+
 function getLineAngle(line) {
   const g = line.geometry || line
   return Math.atan2(g.y2 - g.y1, g.x2 - g.x1)
@@ -48,7 +50,7 @@ function handleDimMouseDown(engine, x, y) {
         engine._dimState.vertexX = g1.x1
         engine._dimState.vertexY = g1.y1
       }
-      engine._dimState.arcRadius = 20
+      engine._dimState.arcRadius = DIM_ARC_RADIUS_DEFAULT
     }
   } else if (engine._dimState.phase === 'arc_offset') {
     commitDimension(engine)
@@ -65,7 +67,7 @@ function commitDimension(engine) {
   let entity
   if (ds.type === 'linear') {
     const { x1, y1, x2, y2 } = ds
-    const offset = Math.max(10, Math.min(100, ds.offset || 15))
+    const offset = Math.max(DIM_OFFSET_MIN, Math.min(DIM_OFFSET_MAX, ds.offset || DIM_OFFSET_DEFAULT))
     entity = {
       id: engine._nextId(),
       type: 'DIMENSION',
@@ -74,7 +76,7 @@ function commitDimension(engine) {
       offset,
       color: engine._getActiveColor(),
       lineWidth: 1.5,
-      layer: engine.activeLayer || '0',
+      layer: engine._activeLayer || '0',
     }
   } else if (ds.type === 'radius') {
     const angle = ds.leaderAngle || -Math.PI / 4
@@ -87,7 +89,7 @@ function commitDimension(engine) {
       leaderAngle: angle,
       color: engine._getActiveColor(),
       lineWidth: 1.5,
-      layer: engine.activeLayer || '0',
+      layer: engine._activeLayer || '0',
     }
   } else if (ds.type === 'angle') {
     const l1 = getLineAngle(ds.line1)
@@ -100,10 +102,10 @@ function commitDimension(engine) {
       vertexY: ds.vertexY,
       angleStart: Math.min(l1, l2),
       angleEnd: Math.max(l1, l2),
-      arcRadius: ds.arcRadius || 20,
+      arcRadius: ds.arcRadius || DIM_ARC_RADIUS_DEFAULT,
       color: engine._getActiveColor(),
       lineWidth: 1.5,
-      layer: engine.activeLayer || '0',
+      layer: engine._activeLayer || '0',
     }
   }
 
@@ -132,7 +134,7 @@ function drawPreviewDimension(engine, ctx) {
 
   if (preview.type === 'linear') {
     const { x1, y1, x2, y2 } = preview
-    const offset = preview.offset !== undefined ? preview.offset : 15
+    const offset = preview.offset !== undefined ? preview.offset : DIM_OFFSET_DEFAULT
     const s1 = engine._worldToScreen(x1, y1)
     const s2 = engine._worldToScreen(x2, y2)
     const dx = s2.x - s1.x, dy = s2.y - s1.y
@@ -170,7 +172,7 @@ function drawPreviewDimension(engine, ctx) {
       vx = g.x1; vy = g.y1
     }
     const s = engine._worldToScreen(vx, vy)
-    const r = (preview.arcRadius || 20) * engine._zoom * engine._gridSize
+    const r = (preview.arcRadius || DIM_ARC_RADIUS_DEFAULT) * engine._zoom * engine._gridSize
     const l1 = getLineAngle(preview.line1)
     const l2 = getLineAngle(preview.line2)
     ctx.strokeStyle = '#a6e3a1'

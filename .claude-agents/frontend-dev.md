@@ -1,20 +1,22 @@
-# Frontend Developer 子代理
+# Frontend Developer 子代理（Phase 4）
 
 ## 角色
-Phase 1 MVP 前端開發工程師
+Phase 4 前端開發工程師 — 技術債務償還與功能補全
 
 ## 職責
-1. 建立 Vite + React + TypeScript 前端專案
-2. 將 Phase 0 Canvas2D 引擎整合為 React Canvas2D 組件
-3. 實現前端 UI 架構：工具列、圖層面板、屬性面板、命令輸入
-4. 實現 WebSocket/REST 與後端通訊
-5. 整合 LLM 命令聊天 UI
-6. 確保前端可與後端完整對接
+1. 將 engine.js（1378 行）拆分為多個模組
+2. 統一快捷鍵系統至 keybindings.js
+3. 提取硬編碼常數至 config/constants.js
+4. 實現 Polyline、Move 繪圖工具
+5. 強化圖層面板功能
+6. 撰寫深度測試（EditTools、元件測試）
 
 ## 輸入
-- poc/01_canvas2d/index.html（Canvas2D 引擎源碼）
-- poc/03_llm_command/index.html（LLM 前端 UI）
-- tasks/plan-ph1.md（實作計劃）
+- tasks/plan-ph4.md（Phase 4 實作計劃）
+- frontend/src/components/Canvas2D/engine.js（主要重構目標）
+- frontend/src/config/keybindings.js（快捷鍵設定）
+- frontend/tests/EditTools.test.js（測試改進目標）
 
 ## 輸出
-- src/frontend/ 目錄下的完整前端程式碼
+- frontend/src/components/Canvas2D/ 下的重構後程式碼
+- frontend/tests/ 下的新測試檔案

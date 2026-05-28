@@ -1,3 +1,5 @@
+import { GRID_SIZE, SNAP_THRESHOLD } from '../../config/constants.js'
+
 export function getEntityPoints(entities) {
   const pts = { endpoints: [], midpoints: [], allLines: [] }
   for (const e of entities) {
@@ -63,8 +65,8 @@ export default class SnapManager {
     this.snapToMidpoint = options.snapToMidpoint !== undefined ? options.snapToMidpoint : true
     this.snapToIntersection = options.snapToIntersection !== undefined ? options.snapToIntersection : true
     this.ortho = false
-    this.gridSize = options.gridSize || 20
-    this.threshold = options.threshold || 10
+    this.gridSize = options.gridSize || GRID_SIZE
+    this.threshold = options.threshold || SNAP_THRESHOLD
     this.snapIndicator = null
     this._cache = { entities: null, points: null, intersections: null }
   }

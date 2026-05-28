@@ -1,15 +1,16 @@
 export const TOOL_KEYS = {
   'v': 'SELECT',
-  'h': 'HAND',
+  'h': 'PAN',
   'l': 'LINE',
   'c': 'CIRCLE',
   'a': 'ARC',
-  'p': 'POLYGON',
+  'p': 'POLYLINE',
   'r': 'RECT',
   't': 'TEXT',
   'd': 'DIM',
   'x': 'COPY',
-  'm': 'MIRROR',
+  'm': 'MOVE',
+  'o': 'OFFSET',
 }
 
 export const ACTION_KEYS = {

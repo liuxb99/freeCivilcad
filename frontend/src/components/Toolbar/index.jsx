@@ -6,7 +6,8 @@ const drawingTools = [
   { id: 'LINE', label: '╱', title: '直線 (L)' },
   { id: 'CIRCLE', label: '○', title: '圓 (C)' },
   { id: 'ARC', label: '⌒', title: '弧 (A)' },
-  { id: 'POLYGON', label: '⬠', title: '多邊形 (P)' },
+  { id: 'POLYGON', label: '⬠', title: '多邊形' },
+  { id: 'POLYLINE', label: '✧', title: '多段線 (P)' },
   { id: 'RECT', label: '▭', title: '矩形 (R)' },
   { id: 'TEXT', label: 'T', title: '文字 (T)' },
   { id: 'DIM', label: '📏', title: '尺寸標註 (D)' },
@@ -14,7 +15,8 @@ const drawingTools = [
 
 const editTools = [
   { id: 'COPY', label: '⊞', title: '複製 (X)' },
-  { id: 'MIRROR', label: '⇔', title: '鏡射 (M)' },
+  { id: 'MOVE', label: '↗', title: '移動 (M)' },
+  { id: 'MIRROR', label: '⇔', title: '鏡射 (Shift+M)' },
 ]
 
 const actions = [

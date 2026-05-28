@@ -1,13 +1,36 @@
+import { COPY_DX, COPY_DY, OFFSET_DISTANCE } from '../../config/constants.js'
+
 export function isEditCommand(cmd) {
-  return ['copy', 'rotate', 'mirror', 'offset', 'trim', 'rect'].includes(cmd)
+  return ['copy', 'rotate', 'mirror', 'offset', 'trim', 'rect', 'move'].includes(cmd)
 }
 
 export function getEditToolCursor(tool) {
-  const map = { copy: 'copy', rotate: 'grab', mirror: 'crosshair', offset: 'cell', trim: 'pointer', rect: 'crosshair' }
+  const map = { copy: 'copy', rotate: 'grab', mirror: 'crosshair', offset: 'cell', trim: 'pointer', rect: 'crosshair', move: 'move' }
   return map[tool] || 'default'
 }
 
 export function handleEditMouseDown(engine, worldX, worldY, editTool) {
+  if (editTool === 'move') {
+    const hit = engine._hitTest(worldX, worldY)
+    if (hit) {
+      engine._selectedEntity = hit
+      engine._editState = {
+        target: hit,
+        dragStart: { x: worldX, y: worldY },
+        beforeState: JSON.parse(JSON.stringify(hit))
+      }
+      engine._invalidateSnapshot()
+      engine._emit('select', hit)
+      engine.render()
+    } else {
+      engine._selectedEntity = null
+      engine._editState = null
+      engine._emit('select', null)
+      engine.render()
+    }
+    return
+  }
+
   if (editTool === 'rect') {
     if (!engine._isDrawing) {
       engine._isDrawing = true
@@ -37,16 +60,17 @@ export function handleEditMouseDown(engine, worldX, worldY, editTool) {
     if (!hit) return
     const copy = JSON.parse(JSON.stringify(hit))
     copy.id = engine._nextId()
-    copy.x = (copy.x || 0) + 10
-    copy.y = (copy.y || 0) + 10
-    if (copy.type === 'LINE') { copy.x1 += 10; copy.y1 += 10; copy.x2 += 10; copy.y2 += 10 }
-    else if (copy.type === 'CIRCLE' || copy.type === 'ARC') { copy.cx += 10; copy.cy += 10 }
-    else if (copy.type === 'POLYGON' && copy.vertices) { for (const v of copy.vertices) { v.x += 10; v.y += 10 } }
-    else if (copy.type === 'TEXT') { copy.x += 10; copy.y += 10 }
+    copy.x = (copy.x || 0) + COPY_DX
+    copy.y = (copy.y || 0) + COPY_DY
+    if (copy.type === 'LINE') { copy.x1 += COPY_DX; copy.y1 += COPY_DY; copy.x2 += COPY_DX; copy.y2 += COPY_DY }
+    else if (copy.type === 'CIRCLE' || copy.type === 'ARC') { copy.cx += COPY_DX; copy.cy += COPY_DY }
+    else if (copy.type === 'POLYGON' && copy.vertices) { for (const v of copy.vertices) { v.x += COPY_DX; v.y += COPY_DY } }
+    else if (copy.type === 'POLYLINE' && copy.vertices) { for (const v of copy.vertices) { v.x += COPY_DX; v.y += COPY_DY } }
+    else if (copy.type === 'TEXT') { copy.x += COPY_DX; copy.y += COPY_DY }
     else if (copy.type === 'DIMENSION') {
-      if (copy.dimType === 'linear') { copy.x1 += 10; copy.y1 += 10; copy.x2 += 10; copy.y2 += 10 }
-      else if (copy.dimType === 'radius') { copy.cx += 10; copy.cy += 10 }
-      else if (copy.dimType === 'angle') { copy.vertexX += 10; copy.vertexY += 10 }
+      if (copy.dimType === 'linear') { copy.x1 += COPY_DX; copy.y1 += COPY_DY; copy.x2 += COPY_DX; copy.y2 += COPY_DY }
+      else if (copy.dimType === 'radius') { copy.cx += COPY_DX; copy.cy += COPY_DY }
+      else if (copy.dimType === 'angle') { copy.vertexX += COPY_DX; copy.vertexY += COPY_DY }
     }
     const cmd = engine._makeAddCmd(copy)
     engine._history.execute(cmd)
@@ -78,12 +102,24 @@ export function handleEditMouseDown(engine, worldX, worldY, editTool) {
             const copy = JSON.parse(JSON.stringify(target))
             copy.id = engine._nextId()
             const rx = p1.x, ry = p1.y
+            // 鏡射公式：對穿過 P1、方向為 (nx,ny) 的直線做鏡射
+            // 投影點 = P1 + dot(P-P1, direction) * direction
+            // 鏡射點 P' = 2 * 投影點 - P
             const nx = dx / len, ny = dy / len
-            const d = 2 * ((copy.x1 || copy.cx || copy.x || 0) - rx) * nx + 2 * ((copy.y1 || copy.cy || copy.y || 0) - ry) * ny
-            if (copy.type === 'LINE') { copy.x1 -= d * nx; copy.y1 -= d * ny; copy.x2 -= d * nx; copy.y2 -= d * ny }
-            else if (copy.type === 'CIRCLE' || copy.type === 'ARC') { copy.cx -= d * nx; copy.cy -= d * ny }
-            else if (copy.type === 'POLYGON' && copy.vertices) { for (const v of copy.vertices) { v.x -= d * nx; v.y -= d * ny } }
-            else if (copy.type === 'TEXT') { copy.x -= d * nx; copy.y -= d * ny }
+            const reflectPt = (px, py) => {
+              const dot = (px - rx) * nx + (py - ry) * ny
+              return { x: 2 * (rx + dot * nx) - px, y: 2 * (ry + dot * ny) - py }
+            }
+            if (copy.type === 'LINE') {
+              const p1r = reflectPt(copy.x1, copy.y1); copy.x1 = p1r.x; copy.y1 = p1r.y
+              const p2r = reflectPt(copy.x2, copy.y2); copy.x2 = p2r.x; copy.y2 = p2r.y
+            } else if (copy.type === 'CIRCLE' || copy.type === 'ARC') {
+              const cr = reflectPt(copy.cx, copy.cy); copy.cx = cr.x; copy.cy = cr.y
+            } else if ((copy.type === 'POLYGON' || copy.type === 'POLYLINE') && copy.vertices) {
+              for (const v of copy.vertices) { const vr = reflectPt(v.x, v.y); v.x = vr.x; v.y = vr.y }
+            } else if (copy.type === 'TEXT') {
+              const tr = reflectPt(copy.x, copy.y); copy.x = tr.x; copy.y = tr.y
+            }
             const cmd = engine._makeAddCmd(copy)
             engine._history.execute(cmd)
             engine._emit('entityAdded', engine._entities[engine._entities.length - 1])
@@ -103,7 +139,7 @@ export function handleEditMouseDown(engine, worldX, worldY, editTool) {
   if (editTool === 'offset') {
     const hit = engine._hitTest(worldX, worldY)
     if (!hit) return
-    const dist = 15
+    const dist = OFFSET_DISTANCE
     const copy = JSON.parse(JSON.stringify(hit))
     copy.id = engine._nextId()
     if (copy.type === 'LINE') {
@@ -138,6 +174,18 @@ export function handleEditMouseDown(engine, worldX, worldY, editTool) {
 }
 
 export function handleEditMouseMove(engine, worldX, worldY, editTool) {
+  if (editTool === 'move' && engine._editState && engine._editState.target) {
+    const es = engine._editState
+    const dx = worldX - es.dragStart.x
+    const dy = worldY - es.dragStart.y
+    engine._moveEntity(es.target, dx, dy)
+    es.dragStart = { x: worldX, y: worldY }
+    engine._invalidateSnapshot()
+    engine._emit('select', es.target)
+    engine.render()
+    return true
+  }
+
   if (editTool === 'rect' && engine._isDrawing && engine._drawingEntity && engine._drawingEntity.vertices) {
     const v = engine._drawingEntity.vertices
     v[1] = { x: worldX, y: v[0].y }
@@ -182,6 +230,22 @@ export function handleEditMouseMove(engine, worldX, worldY, editTool) {
 }
 
 export function handleEditMouseUp(engine, worldX, worldY, editTool) {
+  if (editTool === 'move' && engine._editState && engine._editState.target) {
+    const es = engine._editState
+    if (es.beforeState) {
+      const after = JSON.parse(JSON.stringify(es.target))
+      if (JSON.stringify(after) !== JSON.stringify(es.beforeState)) {
+        const cmd = engine._makeMoveCmd(es.target, es.beforeState)
+        engine._history.execute(cmd)
+        engine._logCommand('MOVE_ENTITY', es.target.id, es.beforeState, after)
+        engine._emit('modified')
+      }
+    }
+    engine._editState = null
+    engine.render()
+    return
+  }
+
   if (editTool === 'rotate' && engine._editState && engine._editState.target) {
     const es = engine._editState
     if (es._saved) {

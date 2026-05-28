@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { fileApi } from '../../services/api'
 
-export default function FileMenu({ engine }) {
+export default function FileMenu({ engine, onGoHome }) {
   const fileInputRef = useRef(null)
   const dxfInputRef = useRef(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -108,6 +108,8 @@ export default function FileMenu({ engine }) {
   }
 
   const menuItems = [
+    { label: '回到首頁', shortcut: '', action: () => onGoHome?.() },
+    { type: 'separator' },
     { label: '新畫布', shortcut: 'Ctrl+N', action: handleNew },
     { label: '儲存 JSON', shortcut: 'Ctrl+S', action: handleSaveJSON },
     { label: '載入 JSON', shortcut: 'Ctrl+O', action: handleLoadJSON },
@@ -130,10 +132,17 @@ export default function FileMenu({ engine }) {
           <div style={styles.overlay} onClick={() => setMenuOpen(false)} />
           <div style={styles.dropdown}>
             {menuItems.map((item, i) => (
-              <div key={i} style={styles.menuItem} onClick={item.action}>
-                <span>{item.label}</span>
-                {item.shortcut && <span style={styles.shortcut}>{item.shortcut}</span>}
-              </div>
+              item.type === 'separator' ? (
+                <div key={i} style={styles.separator} />
+              ) : (
+                <div key={i} style={styles.menuItem} onClick={item.action}>
+                  <span style={item.label === '回到首頁' ? styles.homeLabel : undefined}>
+                    {item.label === '回到首頁' && '🏠 '}
+                    {item.label}
+                  </span>
+                  {item.shortcut && <span style={styles.shortcut}>{item.shortcut}</span>}
+                </div>
+              )
             ))}
           </div>
         </>
@@ -207,6 +216,15 @@ const styles = {
   shortcut: {
     color: '#6c7086',
     fontSize: '11px',
+  },
+  separator: {
+    height: '1px',
+    backgroundColor: '#313244',
+    margin: '4px 8px',
+  },
+  homeLabel: {
+    color: '#89b4fa',
+    fontWeight: 600,
   },
   status: {
     position: 'fixed',

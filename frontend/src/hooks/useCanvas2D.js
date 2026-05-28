@@ -11,6 +11,7 @@ export function useCanvas2D(canvasRef, props = {}) {
     if (!canvas) return
 
     const engine = new Engine(canvas)
+    // 建構子已自動呼叫 _setupSize / _createOverlays / _bindEvents / render
     engineRef.current = engine
     setEngine(engine)
     if (props.onReady) props.onReady(engine)

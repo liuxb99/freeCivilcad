@@ -1,3 +1,4 @@
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket
@@ -43,3 +44,22 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}
+
+
+# ─── Vercel / REST polling 端點 ───────────────────────────────
+# 在 Vercel 環境中無法使用 WebSocket，前端會透過 REST polling 替代。
+# 這些端點提供連線狀態偵測與 LLM 指令的 REST 替代方案。
+
+
+@app.get("/api/ws/status")
+async def ws_status():
+    """
+    REST polling 端點 — 取代 WebSocket 連線狀態偵測。
+    前端每 5 秒呼叫此端點，若回傳 ok 表示後端正常。
+    """
+    from app.websocket.handler import manager
+    return {
+        "status": "ok",
+        "ws_clients": manager.count,
+        "timestamp": time.time(),
+    }

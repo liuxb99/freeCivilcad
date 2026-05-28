@@ -6,14 +6,25 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "commands.db"
+# Vercel 環境（唯讀檔案系統）使用 :memory:
+# 本地開發仍使用 data/commands.db
+_VERCEL_ENV = os.environ.get("VERCEL", "") or os.environ.get("VERCEL_ENV", "")
+DB_IS_MEMORY = _VERCEL_ENV != "" or os.environ.get("DB_MODE", "").lower() == "memory"
+
+if DB_IS_MEMORY:
+    DB_PATH = ":memory:"
+else:
+    DB_PATH = Path(__file__).parent.parent.parent / "data" / "commands.db"
 
 
 class CommandLog:
     def __init__(self):
-        os.makedirs(str(DB_PATH.parent), exist_ok=True)
-        self.conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        self.conn.execute("PRAGMA journal_mode=WAL")
+        if DB_IS_MEMORY:
+            self.conn = sqlite3.connect(":memory:", check_same_thread=False)
+        else:
+            os.makedirs(str(DB_PATH.parent), exist_ok=True)
+            self.conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+            self.conn.execute("PRAGMA journal_mode=WAL")
         self._init_db()
         self._buffer = []
         self._undo_timestamps = {}

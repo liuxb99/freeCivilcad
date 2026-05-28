@@ -64,3 +64,35 @@
 2026-05-27T23:08:00+08:00 | AGENT_INVOKE | 啟動 REVIEWER 子代理評分 TASK-005
 2026-05-27T23:09:00+08:00 | REVIEW | TASK-005 第 1 次循環評分 93/100 ✅ 合格（首評即達標）
 2026-05-27T23:10:00+08:00 | TASK_COMPLETE | TASK-005 Phase 3 功能強化完成（評分 93/100 ✅，無需返工）
+TIME_PENDING | TASK_START | TASK-006 Phase 4 規劃分析開始
+TIME_PENDING | AGENT_INVOKE | 啟動 PLANNER 子代理產出 Phase 4 實作建議
+TIME_PENDING | PLAN_COMPLETE | PLANNER 子代理完成 tasks/plan-ph4.md，17 個子任務分解
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-001（engine.js 拆分）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-001 完成（engine.js 拆分為 5 模組，579+413+364+76 行，43 測試通過）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-002（快捷鍵統一）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-002 完成（快捷鍵統一：engine-input.js 改讀 keybindings.js，App.jsx 移除重複邏輯，43 測試通過）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-003（常數提取）
+TIME_PENDING | RETRY | PH4-003 子代理因 skill body 與 arguments 不一致而中斷，已修正 skill 後重新派發
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-003 完成（建立 config/constants.js，12 個常數，6 檔案修改完成，43 測試通過）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-004（EditTools 深度測試）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-004 完成（EditTools 測試從 15→34 項，62 測試全部通過，Build 成功）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-005（PropertyPanel + StatusBar 元件測試）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-005 完成（PropertyPanel 7 項 + StatusBar 5 項元件測試，74 測試全通過，Build 成功）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-006（Polyline 多段線繪圖）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-006 完成（Polyline 多段線，10 項測試，84 測試全通過，Build 成功）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-007（Move 移動工具）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-007 完成（Move 移動工具，5 項測試，89 測試全通過，Build 成功）
+TIME_PENDING | AGENT_INVOKE | 啟動 frontend-dev-ph4 子代理執行 PH4-008（圖層面板強化）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-008 完成（圖層面板強化，8 項元件測試，97 測試全通過，Build 成功）
+TIME_PENDING | AGENT_INVOKE | 啟動子代理執行 PH4-018（Vercel 前後端一體部署）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-018 完成（Vercel 部署：vercel.json + Mangum + WS改REST + SQLite記憶體模式，97+6 測試通過）
+TIME_PENDING | DEPLOY | Vercel 部署成功，正式網址 https://freecivilcad.vercel.app（前端 200，API /api/ws/status 200）
+TIME_PENDING | AGENT_INVOKE | 啟動子代理執行 PH4-019（新增首頁程式說明頁面）
+TIME_PENDING | TASK_SUBTASK_DONE | PH4-019 完成（新增 WelcomePage 首頁、FileMenu 回到首頁、97 測試通過）
+TIME_PENDING | AGENT_INVOKE | 啟動 REVIEWER 子代理評分 Phase 4 整體成果
+TIME_PENDING | BUG | REVIEWER 99/100 但遺漏 runtime 錯誤：useCanvas2D.js 建立 Engine 後未呼叫 init()，畫布無事件監聽
+TIME_PENDING | FIX | 修復 useCanvas2D.js 加入 engine.init() 呼叫
+TIME_PENDING | AGENT_INVOKE | 啟動深度除錯審查 — 全面掃描 Phase 4 runtime 錯誤
+TIME_PENDING | BUGFIX | 修復 5 項 runtime 錯誤
+TIME_PENDING | QA_DONE | Playwright 26/26 逐項瀏覽器操作驗證通過，14 張截圖
+TIME_PENDING | AGENT_INVOKE | 啟動 REVIEWER 子代理進行 Phase 4 最終評分（附 QA 報告）：1) 移除 useCanvas2D 中不存在的 init() 呼叫 2) keybindings 中 HAND→PAN 3) MIRROR 鏡射公式修正 4) activeLayer→_activeLayer 5) 新增鍵盤輸入焦點保護
