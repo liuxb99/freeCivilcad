@@ -35,7 +35,7 @@ export default function App() {
   }, [engine])
 
   const handleToolChange = useCallback((tool) => {
-    setActiveTool(tool)
+    setActiveTool(tool.toUpperCase())
     if (canvasRef.current?.engine) {
       canvasRef.current.engine.setTool(tool.toLowerCase())
     }

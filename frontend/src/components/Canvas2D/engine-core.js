@@ -1026,6 +1026,7 @@ class Engine {
   // ========== 工具與狀態管理 ==========
 
   setTool(tool) {
+    tool = tool.toLowerCase()
     if (tool === this._tool && (tool === 'polygon' || tool === 'polyline') && this._isDrawing) return
     if (this._isDrawing && this._drawingEntity && this._tool === 'polygon' && this._drawingEntity.vertices.length >= 3) { this._finishPolygon() }
     if (this._isDrawing && this._drawingEntity && this._tool === 'polyline' && this._drawingEntity.vertices.length >= 2) { this._finishPolyline(false) }
