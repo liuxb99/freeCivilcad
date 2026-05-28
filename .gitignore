@@ -25,6 +25,8 @@ qa_report.json
 qa_interactive.py
 qa_test.py
 deployed.js
+check_deploy*.py
+curl_temp.txt
 
 # OS
 .DS_Store
