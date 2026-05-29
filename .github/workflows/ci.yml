@@ -15,6 +15,7 @@ concurrency:
 env:
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.13"
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -92,12 +93,7 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: Pull local Vercel config
-        run: vercel pull --token=$VERCEL_TOKEN --yes
+      - name: Build and Deploy to Vercel
+        run: vercel deploy --token=$VERCEL_TOKEN --prod --prebuilt --confirm
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
-      - name: Deploy to Vercel Production
-        run: vercel deploy --token=$VERCEL_TOKEN --prod --prebuilt
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN: $VERCEL_TOKEN
