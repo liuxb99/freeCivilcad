@@ -31,3 +31,4 @@ curl_temp.txt
 # OS
 .DS_Store
 Thumbs.db
+.vercel
