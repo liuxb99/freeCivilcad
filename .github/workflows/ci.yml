@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Vercel CLI
-        run: npm install -g vercel
+        run: npm install -g vercel@31
 
       - name: Download frontend build artifact
         uses: actions/download-artifact@v4
@@ -90,7 +90,7 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: Build and Deploy to Vercel
+      - name: Deploy to Vercel
         run: vercel deploy --prod --prebuilt --confirm
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
