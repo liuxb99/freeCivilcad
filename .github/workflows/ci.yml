@@ -1,0 +1,96 @@
+name: freeCivilCAD CI/CD
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  frontend:
+    name: 前端建置與測試
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v4
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安裝前端相依套件
+        run: npm ci
+        working-directory: frontend
+
+      - name: 執行前端測試
+        run: npm test
+        working-directory: frontend
+        env:
+          CI: true
+
+      - name: 建置前端靜態檔案
+        run: npm run build
+        working-directory: frontend
+
+      - name: 上傳建置產出
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  backend:
+    name: 後端測試
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 安裝後端相依套件
+        run: pip install -r backend/requirements.txt
+        working-directory: .
+
+      - name: 執行後端測試
+        run: python -m pytest backend/tests/ -v
+        working-directory: .
+
+  deploy:
+    name: 部署到 Vercel
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    if: github.ref == "refs/heads/master" && github.event_name == "push"
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v4
+
+      - name: 下載前端建置產出
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: 安裝 Vercel CLI
+        run: npm install -g vercel
+
+      - name: 部署到 Vercel Production
+        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
