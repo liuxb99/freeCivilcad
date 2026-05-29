@@ -15,9 +15,6 @@ concurrency:
 env:
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.13"
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
   frontend:
@@ -94,6 +91,6 @@ jobs:
           path: frontend/dist/
 
       - name: Build and Deploy to Vercel
-        run: vercel deploy --token=$VERCEL_TOKEN --prod --prebuilt --confirm
+        run: vercel deploy --prod --prebuilt --confirm
         env:
-          VERCEL_TOKEN: $VERCEL_TOKEN
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
