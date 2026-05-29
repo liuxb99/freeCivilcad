@@ -18,34 +18,34 @@ env:
 
 jobs:
   frontend:
-    name: 前端建置與測試
+    name: Frontend Build + Test
     runs-on: ubuntu-latest
     steps:
-      - name: 檢出程式碼
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 設定 Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: 安裝前端相依套件
+      - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
 
-      - name: 執行前端測試
+      - name: Run frontend tests
         run: npm test
         working-directory: frontend
         env:
           CI: true
 
-      - name: 建置前端靜態檔案
+      - name: Build frontend static files
         run: npm run build
         working-directory: frontend
 
-      - name: 上傳建置產出
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
@@ -53,44 +53,44 @@ jobs:
           retention-days: 1
 
   backend:
-    name: 後端測試
+    name: Backend Test
     runs-on: ubuntu-latest
     steps:
-      - name: 檢出程式碼
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 設定 Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 安裝後端相依套件
+      - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
         working-directory: .
 
-      - name: 執行後端測試
+      - name: Run backend tests
         run: python -m pytest backend/tests/ -v
         working-directory: .
 
   deploy:
-    name: 部署到 Vercel
+    name: Deploy to Vercel
     needs: [frontend, backend]
     runs-on: ubuntu-latest
     if: github.ref == "refs/heads/master" && github.event_name == "push"
     steps:
-      - name: 檢出程式碼
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 下載前端建置產出
+      - name: Download frontend build artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: frontend/dist/
 
-      - name: 安裝 Vercel CLI
+      - name: Install Vercel CLI
         run: npm install -g vercel
 
-      - name: 部署到 Vercel Production
+      - name: Deploy to Vercel Production
         run: vercel deploy --prod --token=$VERCEL_TOKEN --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
