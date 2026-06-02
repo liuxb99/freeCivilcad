@@ -50,7 +50,7 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist/
-          retention-days: 1
+          retention-days: 7
 
   backend:
     name: Backend Test
@@ -92,3 +92,4 @@ jobs:
 
       - name: Deploy to Vercel
         run: vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+
