@@ -102,3 +102,23 @@ jobs:
       - name: Deploy to Vercel
         run: vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
 
+  github-pages:
+    name: Deploy to GitHub Pages
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy landing page to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./landing
+          force_orphan: true
+          user_name: 'liuxb99'
+          user_email: 'cyliu99@gmail.com'
+
