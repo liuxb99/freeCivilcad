@@ -39,3 +39,8 @@ AGENTS.md
 
 # Claude 子代理設定（僅本地）
 .claude-agents/
+
+# Reasonix 設定（僅本地）
+.reasonix/
+reasonix.toml
+.codegraph/
