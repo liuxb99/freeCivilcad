@@ -36,3 +36,6 @@ Thumbs.db
 # Agent 內部流程文件（僅本地）
 agent_*.md
 AGENTS.md
+
+# Claude 子代理設定（僅本地）
+.claude-agents/
